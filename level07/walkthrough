@@ -1,0 +1,35 @@
+decompile ./level07
+
+stack canary acitvated so we can't smash the stack
+
+loop over 3 instructions
+    -> 'store' to store a value inside a buffer
+    -> 'read' to read a value at a certain index inside the buffer
+    -> 'quit' to return and quit the program
+
+goal -> modify the return value after the quit value so that it returns to our shellcode inside the buffer
+
+to know the index of the return value of main:
+    we do buffer end of stack (ebp + 0x4)- begin address of buffer (esp + 0x24)
+    divided by 4 because it's multiplied by 4 (it's an int)
+    here : 0xffffd2fc − 0xffffd134 = 456 / 4 = 114 
+    since 114 % 3 == 0 
+    we need to write to overflow + 114 = 1073741824 + 114 = 1073741938
+
+
+we need to write our shellcode inside the buffer while making sure to change the %3 index
+to their overflow value (value + {overflow=1073741824} )
+
+we need to then leak the address of the buffer on the stack
+the easiest way is to get the offset from gdb: 
+we go to the function read_number and the print the first argument with `x/x $ebp +0x8`
+this give us the adress of the arg and the adress it points to
+we calculate the difference between the 2 and divide it by 4 (because its cast as an int)
+this gives us (the exact adresses may vary but the offset won't) : 0xffffd110 - 0xffffd134 = -36 / 4 = -9
+so when we read at the index -9 (which will works because the index is read as a signed int)
+we will get the dynamic adress of the buffer
+
+now we just have to do it all in one exection:
+read the adress of the buffer
+store the shellcode 
+overwrite the return adress to the shellcode at index 1073741938 (114)
